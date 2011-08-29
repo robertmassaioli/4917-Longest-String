@@ -1,0 +1,26 @@
+The 4917 Microprocessor
+
+Instruction Set
+
+	One Byte Instructions:
+		0	Halt Program
+		1	R0 = R0 + R1
+		2	R0 = R0 - R1
+		3	R0++
+		4	R1++
+		5	R0--
+		6	R1--
+		7	Ring Bell (Nothing really [Side Effect])
+
+	Two Byte Instructions:
+		8	x	Print x
+		9	x	Load value at location x into R0
+		10	x	Load value at location x into R1
+		11	x	Store value in R0 into location x
+		12	x	Store value in R1 into location x
+		13	x	Goto x
+		14	x	If R0 == 0 Then Goto x
+		15	x	If R0 != 0 Then Goto x
+
+This instruction set can print out numbers in any order. A quine can be made in this language
+and other amazing things too. It is surprisingly powerful.

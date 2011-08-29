@@ -1,0 +1,9 @@
+# temp files
+*~
+.*.swp
+
+# Compile files
+*.o
+*.hex
+*.err
+*.lst
