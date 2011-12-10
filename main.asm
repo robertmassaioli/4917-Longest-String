@@ -39,15 +39,13 @@ lcw macro
  movf INDF, 0
  endm
 
-
 ; The start of the program
  org 0
 
 ; Load the entire program into ram
  movlw PROG
  movwf FSR
- movlw 0
- movwf PC
+ clrf  PC
 
 read_in_memory:
  movfw PC
@@ -60,10 +58,18 @@ read_in_memory:
 
 ; while the PC does not point to a 0 we are good
 start_program:
- movlw 0
- movwf PC
- movwf R0
- movwf R1
+ clrf PC
+ clrf R0
+ clrf R1
+ movlw CCOUNT
+ movwf FSR
+ clrf INDF
+ incf FSR
+ clrf INDF
+ incf FSR
+ clrf INDF
+ incf FSR
+ clrf INDF
 
 ; Get the next instruction from memory
 main_loop:
@@ -137,6 +143,16 @@ eight:
 ; 8	x	Print x
 ; This is the most complicated step where we have to calculate how many characters get printed to the screen
  increment_pc
+ lcw
+ 
+ call increment_ccount
+ 
+ movwf TEMP
+ movlw 0x9
+ subwf TEMP, 0
+ btfsc STATUS, C
+  call increment_ccount
+ 
  goto end_case
 
 nine:
@@ -217,7 +233,7 @@ thirteen:
 fourteen:
 ; 14	x	If R0 == 0 Then Goto x
  increment_pc
- bcf STATUS, Z
+ clrf STATUS
  movf R0, 1
  btfss STATUS, Z
   goto end_case
@@ -228,7 +244,7 @@ fourteen:
 fifteen:
 ; 15	x	If R0 != 0 Then Goto x
  increment_pc
- bcf STATUS, Z
+ clrf STATUS
  movf R0, 1
  btfsc STATUS, Z
   goto end_case
@@ -241,14 +257,61 @@ end_case:
  goto main_loop
 
 fin: 
+ ;call increment_ccount
  goto fin
+ 
+increment_ccount:
+ movlw CCOUNT
+ movwf FSR
+ clrf STATUS
+ incf INDF, 1
+ btfss STATUS, Z
+  goto increment_ccount_end
+  
+ incf FSR, 1
+ clrf STATUS
+ incf INDF, 1
+ btfss STATUS, Z
+  goto increment_ccount_end
+  
+ incf FSR, 1
+ clrf STATUS
+ incf INDF, 1
+ btfss STATUS, Z
+  goto increment_ccount_end
+  
+ incf FSR, 1
+ incf INDF, 1
+
+increment_ccount_end: 
+ return
+
 
 program:
  addwf PCL
 ; be careful here, all numbers must be in HEX!!!
- dt	0x3, 0x8, 0xA, 0xF
- dt	0, 0, 0, 0
- dt	0, 0, 0, 0	
- dt	0, 0, 0, 0
+dt	0x1, 0x8, 0x8, 0xF
+dt	0x6, 0x8, 0xD, 0x2
+dt	0x5, 0xF, 0x0, 0	
+dt	0, 0, 0, 0
+
+; dt	0x3, 0x8, 0xA, 0xF
+; dt	0, 0, 0, 0
+; dt	0, 0, 0, 0	
+; dt	0, 0, 0, 0
+
+;4:   3	8	10	15		      					32	
+;5:   4	1	8	10	15		      				62
+;6:   4	8	8	13	2	15		      			93
+;7:   1	8	10	14	4	1	15	      			172
+;8:   1	8	10	14	4	2	4	15	      		482
+;9:   1	3	8	10	15	1	4	2	15       	512
+;10:  1	8	8	15	6	8	13	2	5	15    	1173
+;11:  1	3	8	10	8	10	15	1	4	2	15 	1024
+;12:
+;13:
+;14:
+;15:
+;16:
 
  end
