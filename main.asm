@@ -1,4 +1,16 @@
-; This is the main ASM file in which everything will run.
+; Author: Robert Masasioli
+; Date: 11/12/2011
+;
+; Prelude:
+; Beware he who stumbles upon this file: it is a little bit of a mess but it does have a structure.
+; I have attempted to extract as many of the processes into their own functions as I can but please keep in mind
+; that I do not have a stack to push and pop variables into when I call these functions so all of my registers have
+; been carefully chosen to avoid conflicts. I know that it goes against the whole point of abstraction but there was
+; nothing I can do, this cheap microcontroller only has an 8 deep stack that is reserved purely for return values.
+;
+; The parts required for this kit are not that expensive, you can buy the microcontroller directly from Microchip for a dollar
+; and this Assembly code should be runnable on most of their microcontrollers.
+
  LIST P=16f688
  processor 16f688
  include <p16f688.inc>
@@ -15,6 +27,7 @@
 	CCOUNT:4	; The number of characters printed.
 	LPROG:8
 	LCOUNT:4 	; The Longest number of characters ever printed
+	TIMEOUT:2
  endc
 
 ; increments the PC and wraps it at the 4-bit boundary too
@@ -45,14 +58,19 @@ lcw macro
 ; The start of the program
  org 0
  goto main
- 
+
+; minus by one because it is zero based
+prog_len 		equ (3 - 1)
+timeout_high 	equ 0x04
+timeout_low 	equ 0x00
+
 program:
  addwf PCL
  dt 0x1,0x8,0x8,0xF,0x6,0x8,0xD,0x2,0x5,0xF,0x0,0x0,0x0,0x0,0x0,0x0
 
 main:
 ; In this case you load the program from the bottom and run it
-#if 1
+#if 0
  ; Load the entire program into ram
  movlw CPROG
  movwf FSR
@@ -73,23 +91,90 @@ read_in_memory:
  movlw CPROG
  movwf FSR
  clrw
-set_to_zero_loop:
+set_to_w_loop:
  movwf INDF
  incf FSR, 1
  incf PC, 1
  btfss PC, 4
-  goto set_to_zero_loop
+  goto set_to_w_loop
 #endif
 
+ ; clear LCOUNT
+ movlw LCOUNT
+ movwf FSR
+ movlw 0x4
+ movwf TEMP
+ call clear_multibyte
+
+; make it not all zeros
+start_calc:
+ movlw CPROG
+ movwf FSR
+ movlw prog_len
+ addwf FSR, F
+ movlw 0x1
+ movwf INDF
+
+start_calc_loop:
+ ; check to see if it has all zeroed
+ movlw CPROG
+ movwf FSR
+ movlw prog_len
+ addwf FSR, F
+ movf INDF, W
+ btfsc STATUS, Z
+  goto end_calc_loop
+
+inner_loop:
+ ; now run the program to see it go
  call run_program
+ ; now check to see if this program output more characters than any previous ones 
+ ; LCOUNT - CCOUNT will tell the story if there is a carry at the end then we know that CCOUNT was bigger
+ movf    CCOUNT, W
+ subwf   LCOUNT, W  
+ movf    (CCOUNT+1), W
+ btfss   STATUS, C
+ incfsz  (CCOUNT+1), W
+ subwf   (LCOUNT+1), W
+ movf    (CCOUNT+2), W
+ btfss   STATUS, C
+ incfsz  (CCOUNT+2), W
+ subwf   (LCOUNT+2), W
+ movf    (CCOUNT+3), W
+ btfss   STATUS, C
+ incfsz  (CCOUNT+3), W
+ subwf   (LCOUNT+3), W
+ btfsc STATUS, C
+  goto no_update
+  
  call results_to_lprog
- call current_program_length
+ 
+no_update:
+ ; now add one to the program
+ movlw CPROG
+ movwf FSR
+ clrf TEMP
+prog_inc_loop:
+ incf INDF, F
+ movlw 0x0F
+ andwf INDF
+ btfss STATUS, Z
+  goto start_calc_loop
+ incf FSR, F
+ movf TEMP, W
+ sublw prog_len
+ btfsc STATUS, Z
+  goto start_calc_loop
+ incf TEMP, F
+ goto prog_inc_loop
+ 
+end_calc_loop:
  goto fin
 
 fin: 
  ; now we are done, you are free to loop forever doing nothing
- nop
- goto fin
+ movf LCOUNT, W
+ goto $
 
 ; current_to_prog - function
 ; input values:
@@ -175,21 +260,21 @@ rtl_loop:
  movwf R1
  clrf PC
  
- rtl_count_loop:
-  movf R0, W
-  movwf FSR
-  incf R0, F
-  movf INDF, W
-  movwf TEMP
-  movf R1, W
-  movwf FSR
-  incf R1, F
-  movf TEMP, W
-  movwf INDF
-  
-  incf PC, F
-  btfss PC, 2
-   goto rtl_count_loop
+rtl_count_loop:
+ movf R0, W
+ movwf FSR
+ incf R0, F
+ movf INDF, W
+ movwf TEMP
+ movf R1, W
+ movwf FSR
+ incf R1, F
+ movf TEMP, W
+ movwf INDF
+ 
+ incf PC, F
+ btfss PC, 2
+  goto rtl_count_loop
   
  return
  
@@ -235,19 +320,48 @@ run_program:
  clrf PC
  clrf R0
  clrf R1
+ ; clear CCOUNT
  movlw CCOUNT
  movwf FSR
- clrf INDF
- incf FSR
- clrf INDF
- incf FSR
- clrf INDF
- incf FSR
- clrf INDF
+ movlw 0x4
+ movwf TEMP
+ call clear_multibyte
+ 
+ ; clear TIMEOUT
+ movlw TIMEOUT
+ movwf FSR
+ movlw 0x2
+ movwf TEMP
+ call clear_multibyte
+
+ movlw LCOUNT
 
 ; Get the next instruction from memory
 rp_main_loop:
+; increment the timeout. It it has timed out then clear the CCOUNT and break out
+ incf TIMEOUT, F
+ btfsc STATUS, Z
+  incf (TIMEOUT+1), F
+ 
+ ; compare against timeout values
+ movf TIMEOUT, W
+ sublw timeout_low
+ btfss STATUS, Z
+  goto continue_main_loop
+ movf (TIMEOUT+1), W
+ sublw timeout_high
+ btfss STATUS, Z
+  goto continue_main_loop
+ 
+ ; clear CCOUNT
+ movlw CCOUNT
+ movwf FSR
+ movlw 0x4
+ movwf TEMP
+ call clear_multibyte
+ goto rp_fin
 ; load the next instruction
+continue_main_loop:
  lcw
 
 ; add it to the PCL so that you use the jump table
@@ -323,7 +437,7 @@ rp_eight:
  ; TODO Maybe change this code to be a addwf instead so that you can perform a single add instead of two increments
  call increment_ccount
  
- movlw 0x9
+ movlw 0xA
  subwf TEMP, 0
  btfsc STATUS, C
   call increment_ccount
@@ -458,6 +572,18 @@ increment_ccount:
  incf INDF, 1
 
 increment_ccount_end: 
+ return
+ 
+; clear_multibyte - function
+; Purpose:
+;  This function clears a variable to zero. It assums that FSR is pointing to the right place and that TEMP contains the 
+;  number of bytes to clear.
+clear_multibyte:
+ clrf INDF
+ incf FSR, F
+ decf TEMP, F
+ btfss STATUS, Z
+  goto clear_multibyte
  return
 
 ; dt	0x3, 0x8, 0xA, 0xF
