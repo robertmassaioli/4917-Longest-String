@@ -144,10 +144,10 @@ eight:
 ; This is the most complicated step where we have to calculate how many characters get printed to the screen
  increment_pc
  lcw
+ movwf TEMP
  
  call increment_ccount
  
- movwf TEMP
  movlw 0x9
  subwf TEMP, 0
  btfsc STATUS, C
@@ -290,10 +290,10 @@ increment_ccount_end:
 program:
  addwf PCL
 ; be careful here, all numbers must be in HEX!!!
-dt	0x1, 0x8, 0x8, 0xF
-dt	0x6, 0x8, 0xD, 0x2
-dt	0x5, 0xF, 0x0, 0	
-dt	0, 0, 0, 0
+ dt	0x1, 0x8, 0x8, 0xF
+ dt	0x6, 0x8, 0xD, 0x2
+ dt	0x5, 0xF, 0x0, 0	
+ dt	0, 0, 0, 0
 
 ; dt	0x3, 0x8, 0xA, 0xF
 ; dt	0, 0, 0, 0
