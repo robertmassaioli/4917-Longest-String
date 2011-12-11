@@ -82,6 +82,7 @@ set_to_zero_loop:
 #endif
 
  call run_program
+ call results_to_lprog
  call current_program_length
  goto fin
 
@@ -135,37 +136,61 @@ ctp_loop:
 ;  You call this function when the current value in CCOUNT and CPROG are the longest program that you have seen so far.
 results_to_lprog:
  movlw CPROG
- movf R0
+ movwf R0
  movlw LPROG
  movwf R1
  clrf PC
  
 rtl_loop:
  ; load the first two values into TEMP
- movf R0, 0
+ movf R0, W
  movwf FSR
- incf R0, 1
- movf INDF, 0
+ incf R0, F
+ movf INDF, W
  movwf TEMP
- rlf TEMP, 1
- rlf TEMP, 1
- rlf TEMP, 1
- rlf TEMP, 1
- incf FSR, 1
- incf R0, 1
- movf INDF, 0
- iorwf TEMP, 1
+ rlf TEMP, F
+ rlf TEMP, F
+ rlf TEMP, F
+ rlf TEMP, F
+ incf FSR, F
+ incf R0, F
+ movf INDF, W
+ iorwf TEMP, F
  
  ; move temp into the next slot in LPROG
- movf R1, 0
+ movf R1, W
  movwf FSR
- incf R1, 1
- movf TEMP, 0
+ incf R1, F
+ movf TEMP, W
  movwf INDF
  
- incf PC, 1
+ incf PC, F
  btfss PC, 3	; skip when you reach 8
   goto rtl_loop
+  
+ ; now copy CCOUNT to LCOUNT
+ movlw CCOUNT
+ movwf R0
+ movlw LCOUNT
+ movwf R1
+ clrf PC
+ 
+ rtl_count_loop:
+  movf R0, W
+  movwf FSR
+  incf R0, F
+  movf INDF, W
+  movwf TEMP
+  movf R1, W
+  movwf FSR
+  incf R1, F
+  movf TEMP, W
+  movwf INDF
+  
+  incf PC, F
+  btfss PC, 2
+   goto rtl_count_loop
+  
  return
  
 ; current_program_length - function
