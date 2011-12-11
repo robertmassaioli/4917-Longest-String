@@ -15,7 +15,9 @@
  processor 16f688
  include <p16f688.inc>
 
- __CONFIG _WDT_OFF
+; The WDT needs to be off because we do not want it resetting on us.
+; INTOSCIO means it will run at 8MHz
+ __CONFIG _WDT_OFF & _INTOSCIO
 
  cblock 0x20
 	R0
@@ -60,7 +62,7 @@ lcw macro
  goto main
 
 ; minus by one because it is zero based
-prog_len 		equ (3 - 1)
+prog_len 		equ (4 - 1)
 timeout_high 	equ 0x04
 timeout_low 	equ 0x00
 
