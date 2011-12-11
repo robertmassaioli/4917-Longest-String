@@ -10,6 +10,15 @@
 ;
 ; The parts required for this kit are not that expensive, you can buy the microcontroller directly from Microchip for a dollar
 ; and this Assembly code should be runnable on most of their microcontrollers.
+;
+; Hardware Connections
+;  The only device that is connected to this PIC Micro is a LCD Screen because that is all that will fit. It only leaves one
+;  output pin free. It would not be so bad if I got an LCD Screen that accepted 4-bit instead of 8-bit data lines. However
+;  that means that RA0-5 (6-bits) are connected to the LCD DB0-5 and RC0-1 are connected to LCD DB6-7. That leaves:
+;   - RC2 => LCD E
+;   - RC3 => LCD RW
+;   - RC4 => LCD RS
+;  The only pin that leaves free on the 16f688 in RC5 which can be used as an LED status light maybe.
 
  LIST P=16f688
  processor 16f688
@@ -31,31 +40,6 @@
 	LCOUNT:4 	; The Longest number of characters ever printed
 	TIMEOUT:2
  endc
-
-; increments the PC and wraps it at the 4-bit boundary too
-increment_pc macro
- incf PC, 1
- movlw 0x0F
- andwf PC, 1
- endm
-
-wrap_r0 macro
- movlw 0x0F
- andwf R0, 1
- endm
- 
-wrap_r1 macro
- movlw 0x0F
- andwf R1, 1
- endm
-
-; loads the current value into w 
-lcw macro
- movlw PROG
- addwf PC, 0
- movwf FSR
- movf INDF, 0
- endm
 
 ; The start of the program
  org 0
@@ -177,6 +161,10 @@ fin:
  ; now we are done, you are free to loop forever doing nothing
  movf LCOUNT, W
  goto $
+
+;;;;;;
+;; Helper Functions
+;;;;;;
 
 ; current_to_prog - function
 ; input values:
@@ -588,23 +576,33 @@ clear_multibyte:
   goto clear_multibyte
  return
 
-; dt	0x3, 0x8, 0xA, 0xF
-; dt	0, 0, 0, 0
-; dt	0, 0, 0, 0	
-; dt	0, 0, 0, 0
+;;;;;;
+;; Macros
+;;;;;;
 
-;4:   3	8	10	15		      					32	
-;5:   4	1	8	10	15		      				62
-;6:   4	8	8	13	2	15		      			93
-;7:   1	8	10	14	4	1	15	      			172
-;8:   1	8	10	14	4	2	4	15	      		482
-;9:   1	3	8	10	15	1	4	2	15       	512
-;10:  1	8	8	15	6	8	13	2	5	15    	1173
-;11:  1	3	8	10	8	10	15	1	4	2	15 	1024
-;12:
-;13:
-;14:
-;15:
-;16:
+; increments the PC and wraps it at the 4-bit boundary too
+increment_pc macro
+ incf PC, 1
+ movlw 0x0F
+ andwf PC, 1
+ endm
+
+wrap_r0 macro
+ movlw 0x0F
+ andwf R0, 1
+ endm
+ 
+wrap_r1 macro
+ movlw 0x0F
+ andwf R1, 1
+ endm
+
+; loads the current value into w 
+lcw macro
+ movlw PROG
+ addwf PC, 0
+ movwf FSR
+ movf INDF, 0
+ endm
 
  end
