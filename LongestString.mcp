@@ -46,7 +46,7 @@ file_004=yes
 file_005=yes
 [FILE_INFO]
 file_000=main.asm
-file_001=E:\Programs (x86)\Microchip\MPASM Suite\Example\IDASM16.ASM
+file_001=IDASM16.ASM
 file_002=Instruction Set.txt
 file_003=machineCode.txt
 file_004=pic16f688.pdf
