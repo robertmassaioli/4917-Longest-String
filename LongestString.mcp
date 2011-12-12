@@ -28,21 +28,29 @@ file_000=.
 file_001=.
 file_002=.
 file_003=.
+file_004=.
+file_005=.
 [GENERATED_FILES]
 file_000=no
 file_001=no
 file_002=no
 file_003=no
+file_004=no
+file_005=no
 [OTHER_FILES]
 file_000=no
-file_001=yes
+file_001=no
 file_002=yes
 file_003=yes
+file_004=yes
+file_005=yes
 [FILE_INFO]
 file_000=main.asm
-file_001=Instruction Set.txt
-file_002=machineCode.txt
-file_003=pic16f688.pdf
+file_001=E:\Programs (x86)\Microchip\MPASM Suite\Example\IDASM16.ASM
+file_002=Instruction Set.txt
+file_003=machineCode.txt
+file_004=pic16f688.pdf
+file_005=E:\Programs (x86)\Microchip\MPASM Suite\hlpMPASMAsm.chm
 [SUITE_INFO]
 suite_guid={6B3DAA78-59C1-46DD-B6AA-DBDAE4E06484}
 suite_state=generate-relocatable-code
