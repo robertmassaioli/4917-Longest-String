@@ -39,6 +39,11 @@ LCD_WRITE_DELAY 	equ 0x15
 ; LCD Control Commands
 LCD_CLEAR_SCREEN 	equ b'00000001'
 LCD_RETURN_HOME 	equ b'00000010'
+LCD_SET_DDRAM		equ b'10000000'
+LCD_SET_CGRAM		equ b'01000000'
+
+LCD_LINE1 			equ 0x00
+LCD_LINE2			equ 0x40
 
  LIST P=16f688
  processor 16f688
@@ -55,6 +60,7 @@ LCD_RETURN_HOME 	equ b'00000010'
 	R1 
 	PC
 	TEMP
+	TEMP2
 	CPROG:16	; The CURRENT program being run
 	PROG:16
 	CCOUNT:4	; The number of characters printed.
@@ -120,50 +126,15 @@ tmr0_interrupt_end:
 main:
  pagesel setup_hardware
  call setup_hardware
- banksel LCDCONTROL
- bcf LCDCONTROL, 0
- 
- movlw 'R'
- banksel LCDOUT
- movwf LCDOUT
- pagesel lcd_write_data_busy
- call lcd_write_data_busy
- 
- movlw 'O'
- banksel LCDOUT
- movwf LCDOUT
- pagesel lcd_write_data_busy
- call lcd_write_data_busy
- 
- pagesel copy_init_data
- call copy_init_data
- 
- banksel hex_st
- movlw hex_st
- movwf FSR
- movlw 0xA
- addwf FSR, F
- bankisel hex_st
- movf INDF, W
- banksel LCDOUT
- movwf LCDOUT
- pagesel lcd_write_data_busy
- call lcd_write_data_busy
- goto $
- 
- call print_status
 
  ; set all of the program memory to zero
- clrf PC
  movlw CPROG
- movwf FSR
- clrw
-set_to_w_loop:
- movwf INDF
- incf FSR, 1
- incf PC, 1
- btfss PC, 4
-  goto set_to_w_loop
+ pagesel clear_program
+ call clear_program
+ 
+ movlw LPROG
+ pagesel clear_program
+ call clear_program
 
  ; clear LCOUNT
  movlw LCOUNT
@@ -171,6 +142,10 @@ set_to_w_loop:
  movlw 0x4
  movwf TEMP
  call clear_multibyte
+ 
+ ; now print the status initially right before you begin
+ pagesel print_status
+ call print_status
 
 ; make it not all zeros
 start_calc:
@@ -193,6 +168,7 @@ start_calc_loop:
 
 inner_loop:
  ; now run the program to see it go
+ pagesel run_program
  call run_program
  ; now check to see if this program output more characters than any previous ones 
  ; LCOUNT - CCOUNT will tell the story if there is a carry at the end then we know that CCOUNT was bigger
@@ -214,8 +190,10 @@ inner_loop:
   goto no_update
  
  ; It is better than the previous results, update 
+ pagesel results_to_lprog
  call results_to_lprog
  ; Write the current best result to the screen
+ pagesel print_status
  call print_status
  
 no_update:
@@ -242,7 +220,12 @@ end_calc_loop:
 
 fin: 
  ; now we are done, you are free to loop forever doing nothing
- ;call print_status
+ pagesel print_status
+ call print_status
+ 
+ movlw done_st
+ pagesel print_string
+ call print_string
  goto $
 
 ;;;;;;
@@ -494,25 +477,53 @@ ctp_loop:
 print_status:
  bsf LCDCONTROL, 0
  movlw LCD_CLEAR_SCREEN
- movfw LCDOUT
+ movwf LCDOUT
  pagesel lcd_write_data_busy
  call lcd_write_data_busy
+
+ ; wait the correct amount of time
+ movlw LCD_DELAY_MED
+ movwf DELAY
+ call lcd_delay
 
  banksel FSR
  movlw LPROG
  movwf FSR
+ banksel LCDCONTROL
  bcf LCDCONTROL, 0
 
  movlw D'8'
+ banksel PC
  movwf PC 	; Use PC as the counter down
+ bankisel LPROG
 print_status_lprog:
  movf INDF, W
  movwf TEMP
  pagesel print_byte_as_hex
  call print_byte_as_hex
+ banksel FSR
+ incf FSR, F
  decf PC, F
  btfss STATUS, Z
   goto print_status_lprog
+ 
+ bsf LCDCONTROL, 0
+ movlw (LCD_SET_DDRAM | LCD_LINE2)
+ movwf LCDOUT
+ pagesel lcd_write_data_busy
+ call lcd_write_data_busy
+ 
+ bcf LCDCONTROL, 0
+ movlw len_st
+ pagesel print_string
+ call print_string
+ 
+ banksel TEMP
+ movlw 0x4
+ movwf TEMP
+ movlw LCOUNT
+ pagesel print_number
+ call print_number
  
  return
 
@@ -520,6 +531,7 @@ print_status_lprog:
 ; This function assumes that the number to print is in TEMP
 ; This function assumes that the lcd is in write mode not control mode
 print_byte_as_hex:
+ banksel TEMP
  swapf TEMP, W
  andlw 0x0F
  pagesel get_hex_char
@@ -529,6 +541,7 @@ print_byte_as_hex:
  pagesel lcd_write_data_busy
  call lcd_write_data_busy
  
+ banksel TEMP
  movf TEMP, W
  andlw 0x0F
  pagesel get_hex_char
@@ -543,20 +556,63 @@ print_byte_as_hex:
 ; Assumes that W contains the value to convert to hex
 get_hex_char:
  ; select the character to read
- banksel FSR
- movwf FSR
- movlw hex_st
- addwf FSR, F
- bankisel hex_st
- movf INDF, W
+ banksel EEADR
+ addlw hex_st
+ movwf EEADR
+ bcf EECON1, EEPGD
+ bsf EECON1, RD
+ movf EEDAT, W
  return
 
 ; print_string - function
-; Assumes that WREG holds the string that you want to print
+; Assumes that WREG holds the ADDR of the string that you want to print
 print_string:
+ banksel EEADR
+ movwf EEADR
+print_string_loop:
+ banksel EECON1
+ bcf EECON1, EEPGD
+ bsf EECON1, RD
+ movf EEDAT, W
+ btfsc STATUS, Z
+  goto print_string_end
+ banksel LCDOUT
+ movwf LCDOUT
+ pagesel lcd_write_data_busy
+ call lcd_write_data_busy
+ banksel EEADR
+ incf EEADR, F
+ goto print_string_loop
+ 
+print_string_end:
  return
 
+; print_number - function
+; The start of the number to print should be in W and the number of bytes in TEMP
 print_number:
+ banksel FSR
+ movwf FSR
+ movf TEMP, W
+ movwf PC
+ addwf FSR, F
+print_number_loop:
+ decf FSR, F
+ movf INDF, W
+ movwf TEMP
+ swapf TEMP, F
+ decf PC, F
+ 
+ decf FSR, F
+ movf INDF, W
+ iorwf TEMP, F
+ 
+ pagesel print_byte_as_hex
+ call print_byte_as_hex
+ 
+ decf PC, F
+ btfss STATUS, Z
+  goto print_number_loop
+ 
  return
  
 ; results_to_lprog - function
@@ -935,11 +991,29 @@ clear_multibyte:
  btfss STATUS, Z
   goto clear_multibyte
  return
+ 
+; clear_program
+; Clears an entire program from memory
+; Assumes that the beginning of the program to clear is in W
+clear_program:
+ banksel FSR
+ movwf FSR
+ clrf PC
+ clrw
+ 
+clear_program_loop:
+ movwf INDF
+ incf FSR, F
+ incf PC, F
+ btfss PC, 4
+  goto clear_program_loop
+  
+ return
 
-string_data idata 0xA0
-welcome_st 	db "4917 Solver", 0
-len_st 		db "Len: ", 0
-done_st 	db "Done", 0
-hex_st 		db "0123456789ABCDEF"
+ ORG	0x2100				; data EEPROM location
+welcome_st 	de "4917 Solver", 0
+len_st 		de "Len: ", 0
+done_st 	de " Done", 0
+hex_st 		de "0123456789ABCDEF"
 
  end
